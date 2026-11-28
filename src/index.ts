@@ -1,10 +1,9 @@
-import dotenv from "dotenv";
 import express from "express";
+import "dotenv/config";
 import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
 import { generateAIResponse } from "./services/ai.service.js";
 
-dotenv.config();
 const { Client, LocalAuth } = pkg;
 const app = express();
 const port = process.env.PORT || 3000;
@@ -13,10 +12,7 @@ const port = process.env.PORT || 3000;
 let isBotEnabled = true;
 
 // Load allowed phone numbers
-const allowedNumbers = (process.env.ALLOWED_PHONE_NUMBERS || "")
-  .split(",")
-  .map((n) => n.trim())
-  .filter(Boolean);
+const allowedNumbers = (process.env.ALLOWED_PHONE_NUMBERS || "").split(",").map((n) => n.trim()).filter(Boolean);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -71,7 +67,17 @@ client.on("message", async (msg) => {
     const chat = await msg.getChat();
     if (chat.isGroup) return;
 
-    const sender = msg.from.replace("@c.us", "");
+    let sender = msg.from.replace("@c.us", "");
+
+    if (msg.from.endsWith("@lid")) {
+      const [resolved] = await client.getContactLidAndPhone([msg.from]);
+      if (resolved?.pn) {
+        sender = resolved.pn.replace("@c.us", "");
+      } else {
+        const contact = await msg.getContact();
+        sender = contact.number || msg.from;
+      }
+    }
 
     // Only reply to whitelisted numbers
     if (allowedNumbers.length > 0 && !allowedNumbers.includes(sender)) {
